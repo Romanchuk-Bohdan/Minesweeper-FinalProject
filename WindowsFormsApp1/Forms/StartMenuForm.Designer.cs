@@ -1,16 +1,11 @@
-﻿namespace WindowsFormsApp1.Core
+﻿using System.Linq;
+
+namespace WindowsFormsApp1.Core
 {
     partial class StartMenuForm
     {
-        /// <summary>
-        /// Required designer variable.
-        /// </summary>
         private System.ComponentModel.IContainer components = null;
 
-        /// <summary>
-        /// Clean up any resources being used.
-        /// </summary>
-        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
             if (disposing && (components != null))
@@ -22,10 +17,6 @@
 
         #region Windows Form Designer generated code
 
-        /// <summary>
-        /// Required method for Designer support - do not modify
-        /// the contents of this method with the code editor.
-        /// </summary>
         private void InitializeComponent()
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(StartMenuForm));
@@ -48,6 +39,8 @@
             this.minesweepertitle = new System.Windows.Forms.Label();
             this.redMineIcon = new System.Windows.Forms.PictureBox();
             this.howToPlay = new System.Windows.Forms.Label();
+            this.labelPlayerName = new System.Windows.Forms.Label();
+            this.textBoxPlayerName = new System.Windows.Forms.TextBox();
             ((System.ComponentModel.ISupportInitialize)(this.rightClickMouse)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.leftClickMouse)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.gameScreenPicture)).BeginInit();
@@ -60,7 +53,7 @@
             this.buttonPlay.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.buttonPlay.Font = new System.Drawing.Font("Consolas", 14F, System.Drawing.FontStyle.Bold);
             this.buttonPlay.ForeColor = System.Drawing.Color.Black;
-            this.buttonPlay.Location = new System.Drawing.Point(213, 462);
+            this.buttonPlay.Location = new System.Drawing.Point(213, 470);
             this.buttonPlay.Name = "buttonPlay";
             this.buttonPlay.Size = new System.Drawing.Size(106, 44);
             this.buttonPlay.TabIndex = 2;
@@ -264,6 +257,26 @@
             this.howToPlay.TabIndex = 11;
             this.howToPlay.Text = "Як грати?";
             // 
+            // labelPlayerName
+            // 
+            this.labelPlayerName.AutoSize = true;
+            this.labelPlayerName.BackColor = System.Drawing.Color.Transparent;
+            this.labelPlayerName.Font = new System.Drawing.Font("Consolas", 14F, System.Drawing.FontStyle.Bold);
+            this.labelPlayerName.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(90)))), ((int)(((byte)(140)))), ((int)(((byte)(59)))));
+            this.labelPlayerName.Location = new System.Drawing.Point(85, 439);
+            this.labelPlayerName.Name = "labelPlayerName";
+            this.labelPlayerName.Size = new System.Drawing.Size(190, 22);
+            this.labelPlayerName.TabIndex = 12;
+            this.labelPlayerName.Text = "Введіть ваше ім\'я:";
+            // 
+            // textBoxPlayerName
+            // 
+            this.textBoxPlayerName.Font = new System.Drawing.Font("Consolas", 12F);
+            this.textBoxPlayerName.Location = new System.Drawing.Point(281, 438);
+            this.textBoxPlayerName.Name = "textBoxPlayerName";
+            this.textBoxPlayerName.Size = new System.Drawing.Size(150, 26);
+            this.textBoxPlayerName.TabIndex = 13;
+            // 
             // StartMenuForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -271,6 +284,8 @@
             this.BackColor = System.Drawing.Color.White;
             this.BackgroundImage = global::WindowsFormsApp1.Properties.Resources.bgStartMenuForm;
             this.ClientSize = new System.Drawing.Size(532, 525);
+            this.Controls.Add(this.textBoxPlayerName);
+            this.Controls.Add(this.labelPlayerName);
             this.Controls.Add(this.gameScreenPicture);
             this.Controls.Add(this.howToPlay);
             this.Controls.Add(this.numberedSpaceLabel);
@@ -326,5 +341,7 @@
         private System.Windows.Forms.Label minesweepertitle;
         private System.Windows.Forms.PictureBox redMineIcon;
         private System.Windows.Forms.Label howToPlay;
+        private System.Windows.Forms.Label labelPlayerName;
+        private System.Windows.Forms.TextBox textBoxPlayerName;
     }
 }
