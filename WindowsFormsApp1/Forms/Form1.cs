@@ -30,8 +30,6 @@ namespace WindowsFormsApp1.Core
         private Label pauseLabel;
         private Button resumeButton;
         private Difficulty currentLevel;
-        private Dictionary<Difficulty, int> bestTimes;
-        private readonly string bestTimesFile = "best_times.txt";
 
         public Form1()
         {
@@ -47,7 +45,6 @@ namespace WindowsFormsApp1.Core
             this.pausePanel.Click += new System.EventHandler(this.pausePanel_Click);
 
             SetupPauseOverlay();
-            LoadBestTimes();
         }
 
         private void SetupUI()
@@ -122,7 +119,7 @@ namespace WindowsFormsApp1.Core
 
             currentLevel = selectedDifficulty;
             lvlNow.Text = $"Рівень: {GetDifficultyDisplayName(currentLevel)}";
-            int best = bestTimes[currentLevel];
+            int best = ProfileManager.Instance.CurrentProfile.BestTimes[currentLevel];
             topRecord.Text = best == int.MaxValue
                 ? "Найкращий час:---"
                 : $"Найкращий час: {best} с";
@@ -181,6 +178,8 @@ namespace WindowsFormsApp1.Core
             if (game.State == GameState.Lost)
             {
                 timer.Stop();
+                ProfileManager.Instance.CurrentProfile.GamesPlayed++;
+                ProfileManager.Instance.SaveProfiles();
                 var result = MessageBox.Show("Гра закінчилась. Ви програли!\n\nСпробувати ще раз?", "Поразка", MessageBoxButtons.YesNo);
                 if (result == DialogResult.Yes) StartGame();
             }
@@ -189,12 +188,16 @@ namespace WindowsFormsApp1.Core
             {
                 timer.Stop();
 
-                if (elapsedSeconds < bestTimes[selectedDifficulty])
+                var currentProfile = ProfileManager.Instance.CurrentProfile;
+                currentProfile.GamesPlayed++;
+                currentProfile.GamesWon++;
+
+                if (elapsedSeconds < currentProfile.BestTimes[selectedDifficulty])
                 {
-                    bestTimes[selectedDifficulty] = elapsedSeconds;
-                    SaveBestTimesToFile();
-                    MessageBox.Show($"Новий рекорд: {elapsedSeconds} секунд для рівня {GetDifficultyDisplayName(selectedDifficulty)}!", "Рекорд");
+                    currentProfile.BestTimes[selectedDifficulty] = elapsedSeconds;
+                    MessageBox.Show($"Новий рекорд: {elapsedSeconds} секунд для рівня {GetDifficultyDisplayName(selectedDifficulty)}", "Рекорд");
                 }
+                ProfileManager.Instance.SaveProfiles();
 
                 if (selectedDifficulty == Difficulty.Easy)
                 {
@@ -477,48 +480,6 @@ namespace WindowsFormsApp1.Core
 
                 pauseOverlayPanel.Visible = true;
                 pauseOverlayPanel.BringToFront();
-        }
-
-        private void LoadBestTimes()
-        {
-            bestTimes = new Dictionary<Difficulty, int>
-            {
-                { Difficulty.Easy, int.MaxValue },
-                { Difficulty.Medium, int.MaxValue },
-                { Difficulty.Hard, int.MaxValue }
-            };
-
-            if (!File.Exists(bestTimesFile)) return;
-
-            var lines = File.ReadAllLines(bestTimesFile);
-            foreach (var line in lines)
-            {
-                var parts = line.Split('=');
-                if (parts.Length != 2) continue;
-
-                if (Enum.TryParse(parts[0], out Difficulty diff) && int.TryParse(parts[1], out int time))
-                {
-                    bestTimes[diff] = time;
-                }
-            }
-        }
-
-        private void SaveBestTimesToFile()
-        {
-            try
-            {
-                using (StreamWriter writer = new StreamWriter(bestTimesFile))
-                {
-                    foreach (var pair in bestTimes)
-                    {
-                        writer.WriteLine($"{pair.Key}={pair.Value}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Помилка збереження найкращих часів: {ex.Message}");
-            }
         }
 
         private string GetDifficultyDisplayName(Difficulty diff)
