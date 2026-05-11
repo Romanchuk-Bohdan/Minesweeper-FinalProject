@@ -79,10 +79,12 @@
   <ItemGroup>
     <Compile Include="Core\Board.cs" />
     <Compile Include="Core\Cell.cs" />
+    <Compile Include="Core\Commands.cs" />
     <Compile Include="Core\Difficulty.cs" />
     <Compile Include="Core\GameMemento.cs" />
     <Compile Include="Core\Profile.cs" />
     <Compile Include="Core\ProfileManager.cs" />
+    <Compile Include="Core\ReplayManager.cs" />
     <Compile Include="Core\SaveManager.cs" />
     <Compile Include="Forms\Form1.cs">
       <SubType>Form</SubType>
