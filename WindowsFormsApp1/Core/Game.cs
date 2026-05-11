@@ -182,5 +182,34 @@ namespace WindowsFormsApp1.Core
                 cell.NeighborMineCount = savedCell.NeighborMineCount;
             }
         }
+
+        public bool IsFirstClick => isFirstClick;
+
+        // Зберігання чистого стану поля з розставленими мінами
+        public GameMemento GetCleanState()
+        {
+            var memento = new GameMemento
+            {
+                PlayerName = ProfileManager.Instance.CurrentProfile.Name,
+                GameDifficulty = this.Difficulty,
+                ElapsedSeconds = 0,
+                CurrentState = GameState.Playing,
+                IsFirstClick = false
+            };
+
+            foreach (var cell in Board.Cells)
+            {
+                memento.Cells.Add(new CellMemento
+                {
+                    X = cell.X,
+                    Y = cell.Y,
+                    IsMine = cell.IsMine,
+                    NeighborMineCount = cell.NeighborMineCount,
+                    IsRevealed = false,
+                    IsFlagged = false
+                });
+            }
+            return memento;
+        }
     }
 }

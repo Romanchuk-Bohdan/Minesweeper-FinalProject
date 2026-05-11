@@ -31,6 +31,7 @@ namespace WindowsFormsApp1.Core
         private Button resumeButton;
         private Difficulty currentLevel;
         private GameMemento _loadedSave;
+        private ReplayManager replayManager;
 
         public Form1(GameMemento saveToLoad = null)
         {
@@ -127,6 +128,7 @@ namespace WindowsFormsApp1.Core
 
             renderer = new GameRenderer(panelGame, game, cellSize, cellImages);
             renderer.DrawBoard(Cell_Click);
+            replayManager = new ReplayManager(game, renderer, labelTimer);
             btnSafeCell.Enabled = true;
             lblSafeOpensRemaining.Text = $"Залишилось:\n{renderer.GetRemainingHighlights()}";
             labelProgress.Text = $"Відкрито:\n{game.GetRevealedPercentage()}%";
@@ -174,21 +176,39 @@ namespace WindowsFormsApp1.Core
             labelTimer.Text = $"Час: {elapsedSeconds} с";
         }
 
-        private void Cell_Click(object sender, MouseEventArgs e)
+        private async void Cell_Click(object sender, MouseEventArgs e)
         {
             if (sender is not PictureBox pic || game.State != GameState.Playing) return;
+            if (replayManager != null && replayManager.IsReplaying) return; // Блокування кліків під час реплею
 
             Point p = (Point)pic.Tag;
             List<Cell> changedCells = new();
+            bool wasFirstClick = game.IsFirstClick;
 
+            ICommand cmd = null;
+
+            // Замість прямих викликів генерування команди
             if (e.Button == MouseButtons.Left)
             {
-                changedCells = game.RevealCell(p.X, p.Y);
+                cmd = new RevealCommand(game, p.X, p.Y);
             }
             else if (e.Button == MouseButtons.Right)
             {
-                game.ToggleFlag(p.X, p.Y);
-                changedCells.Add(game.Board.GetCell(p.X, p.Y));
+                cmd = new FlagCommand(game, p.X, p.Y);
+            }
+
+            if (cmd != null)
+            {
+                changedCells = cmd.Execute();
+
+                // Якщо це був перший клік, міни щойно розставились. Робиться чистий знімок для реплею
+                if (wasFirstClick)
+                {
+                    replayManager.SetInitialState(game.GetCleanState());
+                }
+
+                // Записування команд в історію
+                replayManager.AddCommand(cmd);
             }
 
             renderer.RedrawCells(changedCells);
@@ -200,13 +220,22 @@ namespace WindowsFormsApp1.Core
                 timer.Stop();
                 ProfileManager.Instance.CurrentProfile.GamesPlayed++;
                 ProfileManager.Instance.SaveProfiles();
-                var result = MessageBox.Show("Гра закінчилась. Ви програли!\n\nСпробувати ще раз?", "Поразка", MessageBoxButtons.YesNo);
+                SaveManager.DeleteSave(ProfileManager.Instance.CurrentProfile.Name);
+
+                var replayResult = MessageBox.Show("Гра закінчилась. Ви програли!\n\nБажаєте переглянути повтор Вашої гри?", "Поразка", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (replayResult == DialogResult.Yes)
+                {
+                    await replayManager.PlayReplayAsync();
+                }
+
+                var result = MessageBox.Show("Спробувати ще раз?", "Нова гра", MessageBoxButtons.YesNo);
                 if (result == DialogResult.Yes) StartGame();
             }
 
             else if (game.State == GameState.Won)
             {
                 timer.Stop();
+                SaveManager.DeleteSave(ProfileManager.Instance.CurrentProfile.Name);
 
                 var currentProfile = ProfileManager.Instance.CurrentProfile;
                 currentProfile.GamesPlayed++;
@@ -215,9 +244,15 @@ namespace WindowsFormsApp1.Core
                 if (elapsedSeconds < currentProfile.BestTimes[selectedDifficulty])
                 {
                     currentProfile.BestTimes[selectedDifficulty] = elapsedSeconds;
-                    MessageBox.Show($"Новий рекорд: {elapsedSeconds} секунд для рівня {GetDifficultyDisplayName(selectedDifficulty)}", "Рекорд");
+                    MessageBox.Show($"Новий рекорд: {elapsedSeconds} секунд для рівня {GetDifficultyDisplayName(selectedDifficulty)}!", "Рекорд");
                 }
                 ProfileManager.Instance.SaveProfiles();
+
+                var replayResult = MessageBox.Show("Перемога!\n\nБажаєте переглянути повтор Вашої ідеальної гри?", "Перемога", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                if (replayResult == DialogResult.Yes)
+                {
+                    await replayManager.PlayReplayAsync();
+                }
 
                 if (selectedDifficulty == Difficulty.Easy)
                 {
@@ -253,11 +288,11 @@ namespace WindowsFormsApp1.Core
                         "Вітаємо, Вам вдалось пройти останній рівень складності!",
                         "Перемога",
                         MessageBoxButtons.OK);
+
+                    var result = MessageBox.Show("Грати ще раз?", "Нова гра", MessageBoxButtons.YesNo);
+                    if (result == DialogResult.Yes) StartGame();
                 }
             }
-
-            SaveManager.DeleteSave(ProfileManager.Instance.CurrentProfile.Name);
-
         }
 
         private void PanelTimer_Tick(object sender, EventArgs e)
@@ -436,7 +471,7 @@ namespace WindowsFormsApp1.Core
                 BackColor = Color.Black,
                 Size = new Size(250, 40),
                 FlatStyle = FlatStyle.Flat,
-                Location = new Point(((pauseOverlayPanel.Width - 250) / 2) + 6, 360)
+                Location = new Point(((pauseOverlayPanel.Width - 250) / 2) + 7, 360)
             };
 
             saveExitButton.Click += (s, e) =>
