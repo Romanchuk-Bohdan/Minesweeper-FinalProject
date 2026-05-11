@@ -28,7 +28,8 @@ namespace WindowsFormsApp1.Core
             LoadProfiles();
         }
 
-        public List<Profile> GetAllProfiles() => _profiles;
+        // Техніка: Encapsulate Collection
+        public IReadOnlyList<Profile> GetAllProfiles() => _profiles.AsReadOnly();
 
         public void CreateProfile(string name)
         {

@@ -86,6 +86,7 @@
     <Compile Include="Core\ProfileManager.cs" />
     <Compile Include="Core\ReplayManager.cs" />
     <Compile Include="Core\SaveManager.cs" />
+    <Compile Include="Core\TimeManager.cs" />
     <Compile Include="Forms\Form1.cs">
       <SubType>Form</SubType>
     </Compile>
