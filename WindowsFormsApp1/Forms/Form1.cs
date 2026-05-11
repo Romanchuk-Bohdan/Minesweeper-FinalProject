@@ -30,9 +30,11 @@ namespace WindowsFormsApp1.Core
         private Label pauseLabel;
         private Button resumeButton;
         private Difficulty currentLevel;
+        private GameMemento _loadedSave;
 
-        public Form1()
+        public Form1(GameMemento saveToLoad = null)
         {
+            _loadedSave = saveToLoad;
             InitializeComponent();
             SetupUI();
 
@@ -82,10 +84,30 @@ namespace WindowsFormsApp1.Core
 
         private void StartGame()
         {
-            UpdateSelectedDifficulty();
-            game = new Game(selectedDifficulty);
+            if (_loadedSave != null)
+            {
+                // Завантаження гри
+                selectedDifficulty = _loadedSave.GameDifficulty;
+                game = new Game(selectedDifficulty);
+                game.RestoreState(_loadedSave);
+                elapsedSeconds = _loadedSave.ElapsedSeconds;
+
+                if (selectedDifficulty == Difficulty.Easy) radioEasy.Checked = true;
+                else if (selectedDifficulty == Difficulty.Medium) radioMedium.Checked = true;
+                else if (selectedDifficulty == Difficulty.Hard) radioHard.Checked = true;
+
+                _loadedSave = null;
+            }
+            else
+            {
+                // Нова гра
+                UpdateSelectedDifficulty();
+                game = new Game(selectedDifficulty);
+                game.ResetFirstClick();
+                elapsedSeconds = 0;
+            }
+
             gameStarted = true;
-            game.ResetFirstClick();
             panelGame.Visible = true;
             buttonNewGame.Visible = true;
             buttonNewGame.Enabled = true;
@@ -99,8 +121,7 @@ namespace WindowsFormsApp1.Core
 
             cellSize = Math.Min(panelGame.Width / cols, panelGame.Height / rows);
 
-            elapsedSeconds = 0;
-            labelTimer.Text = "Час: 0 с";
+            labelTimer.Text = $"Час: {elapsedSeconds} с";
             timer.Stop();
             timer.Start();
 
@@ -110,15 +131,14 @@ namespace WindowsFormsApp1.Core
             lblSafeOpensRemaining.Text = $"Залишилось:\n{renderer.GetRemainingHighlights()}";
             labelProgress.Text = $"Відкрито:\n{game.GetRevealedPercentage()}%";
 
-
             totalMines = game.Board.TotalMines;
 
             btnSafeCell.Visible = true;
             panelGame.Enabled = true;
 
-
             currentLevel = selectedDifficulty;
             lvlNow.Text = $"Рівень: {GetDifficultyDisplayName(currentLevel)}";
+
             int best = ProfileManager.Instance.CurrentProfile.BestTimes[currentLevel];
             topRecord.Text = best == int.MaxValue
                 ? "Найкращий час:---"
@@ -235,6 +255,9 @@ namespace WindowsFormsApp1.Core
                         MessageBoxButtons.OK);
                 }
             }
+
+            SaveManager.DeleteSave(ProfileManager.Instance.CurrentProfile.Name);
+
         }
 
         private void PanelTimer_Tick(object sender, EventArgs e)
@@ -370,7 +393,7 @@ namespace WindowsFormsApp1.Core
                 ForeColor = Color.FromArgb(90, 140, 59),
                 BackColor = Color.Transparent,
                 TextAlign = ContentAlignment.MiddleCenter,
-                Location = new Point((pauseOverlayPanel.Width - 280) / 2, 100)
+                Location = new Point((pauseOverlayPanel.Width - 280) / 2 , 100)
             };
 
             resumeButton = new Button
@@ -405,9 +428,28 @@ namespace WindowsFormsApp1.Core
                 btnSafeCell.BringToFront();
             };
 
+            Button saveExitButton = new Button
+            {
+                Text = "Зберегти та вийти",
+                Font = new Font("Consolas", 16, FontStyle.Bold),
+                ForeColor = Color.FromArgb(90, 140, 59),
+                BackColor = Color.Black,
+                Size = new Size(250, 40),
+                FlatStyle = FlatStyle.Flat,
+                Location = new Point(((pauseOverlayPanel.Width - 250) / 2) + 6, 360)
+            };
+
+            saveExitButton.Click += (s, e) =>
+            {
+                var memento = game.CreateMemento(elapsedSeconds);
+                SaveManager.SaveGame(memento);
+                MessageBox.Show("Гру успішно збережено!", "Збереження", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                this.Close();
+            };
 
             pauseOverlayPanel.Controls.Add(pauseLabel);
             pauseOverlayPanel.Controls.Add(resumeButton);
+            pauseOverlayPanel.Controls.Add(saveExitButton);
             this.Controls.Add(pauseOverlayPanel);
         }
 

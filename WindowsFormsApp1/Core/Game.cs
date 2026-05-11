@@ -22,7 +22,7 @@ namespace WindowsFormsApp1.Core
         }
 
         public event Action<GameState> GameEnded;
-        
+
         private bool isFirstClick = true;
 
         private Board CreateBoard(Difficulty difficulty)
@@ -126,14 +126,61 @@ namespace WindowsFormsApp1.Core
 
         public int GetRevealedPercentage()
         {
-            if(State == GameState.Won)
+            if (State == GameState.Won)
             {
                 return 100;
             }
-            
+
             int total = Board.Cells.Length;
             int revealed = Board.Cells.Cast<Cell>().Count(c => c.IsRevealed);
             return (int)((revealed / (double)total) * 100);
+        }
+
+        // Створення та відновлення стану 
+        public GameMemento CreateMemento(int currentElapsedSeconds)
+        {
+            var memento = new GameMemento
+            {
+                PlayerName = ProfileManager.Instance.CurrentProfile.Name,
+                GameDifficulty = this.Difficulty,
+                ElapsedSeconds = currentElapsedSeconds,
+                CurrentState = this.State,
+                IsFirstClick = this.isFirstClick
+            };
+
+            foreach (var cell in Board.Cells)
+            {
+                memento.Cells.Add(new CellMemento
+                {
+                    X = cell.X,
+                    Y = cell.Y,
+                    IsRevealed = cell.IsRevealed,
+                    IsMine = cell.IsMine,
+                    IsFlagged = cell.IsFlagged,
+                    NeighborMineCount = cell.NeighborMineCount
+                });
+            }
+            return memento;
+        }
+
+        public void RestoreState(GameMemento memento)
+        {
+            this.Difficulty = memento.GameDifficulty;
+            this.State = memento.CurrentState;
+            this.isFirstClick = memento.IsFirstClick;
+
+            // Перестворення пустого поля потрібного розміру
+            this.Board = CreateBoard(this.Difficulty);
+
+            // Відновлення стану кожної клітинки
+            foreach (var savedCell in memento.Cells)
+            {
+                var cell = Board.Cells[savedCell.X, savedCell.Y];
+                cell.IsRevealed = savedCell.IsRevealed;
+                cell.IsMine = savedCell.IsMine;
+                cell.IsFlagged = savedCell.IsFlagged;
+                cell.NeighborMineCount = savedCell.NeighborMineCount;
+            }
         }
     }
 }
