@@ -12,16 +12,12 @@ namespace WindowsFormsApp1.Core
     {
         private Game game;
         private Difficulty selectedDifficulty;
-        private Timer timer;
-        private int elapsedSeconds = 0;
+        private TimeManager timeManager;
         private int totalMines = 0;
         private bool isPanelExpanded = true;
-        private int panelMaxHeight = 150;
-        private int panelMinHeight = 0;
         private Timer panelTimer;
         private Dictionary<string, Image> cellImages;
         private int cellSize;
-        private const int PanelAnimationStep = 10;
         private GameRenderer renderer;
         private Label customTooltip;
         private bool isPaused = false;
@@ -32,6 +28,12 @@ namespace WindowsFormsApp1.Core
         private Difficulty currentLevel;
         private GameMemento _loadedSave;
         private ReplayManager replayManager;
+        // Техніка: Replace Magic Numbers with Constants
+        private const int GamePanelDefaultWidth = 660;
+        private const int GamePanelDefaultHeight = 480;
+        private const int MenuPanelMaxHeight = 150;
+        private const int MenuPanelMinHeight = 0;
+        private const int AnimationStep = 10;
 
         public Form1(GameMemento saveToLoad = null)
         {
@@ -39,9 +41,7 @@ namespace WindowsFormsApp1.Core
             InitializeComponent();
             SetupUI();
 
-            timer = new Timer();
-            timer.Interval = 1000;
-            timer.Tick += GameTimer_Tick;
+            timeManager = new TimeManager(labelTimer);
 
             btnSafeCell.Click += BtnSafeCell_Click;
             this.borderForAdditionInfo.Paint += new PaintEventHandler(this.borderForAdditionInfo_Paint);
@@ -68,7 +68,7 @@ namespace WindowsFormsApp1.Core
             buttonNewGame.Click += (s, e) => StartGame();
             buttonNewGame.Enabled = false;
 
-            groupDifficulty.Height = panelMaxHeight;
+            groupDifficulty.Height = MenuPanelMaxHeight;
 
             panelTimer = new Timer();
             panelTimer.Interval = 15;
@@ -83,15 +83,22 @@ namespace WindowsFormsApp1.Core
             LoadCellImages();
         }
 
+        // Техніка: Extract Method (Виділення методу)
         private void StartGame()
+        {
+            InitializeGameData();
+            ConfigureUIForGame();
+            UpdateGameStatsUI();
+        }
+
+        private void InitializeGameData()
         {
             if (_loadedSave != null)
             {
-                // Завантаження гри
                 selectedDifficulty = _loadedSave.GameDifficulty;
                 game = new Game(selectedDifficulty);
                 game.RestoreState(_loadedSave);
-                elapsedSeconds = _loadedSave.ElapsedSeconds;
+                timeManager.Reset(_loadedSave.ElapsedSeconds);
 
                 if (selectedDifficulty == Difficulty.Easy) radioEasy.Checked = true;
                 else if (selectedDifficulty == Difficulty.Medium) radioMedium.Checked = true;
@@ -101,44 +108,44 @@ namespace WindowsFormsApp1.Core
             }
             else
             {
-                // Нова гра
                 UpdateSelectedDifficulty();
                 game = new Game(selectedDifficulty);
                 game.ResetFirstClick();
-                elapsedSeconds = 0;
+                timeManager.Reset(0);
             }
 
+            totalMines = game.Board.TotalMines;
             gameStarted = true;
+            currentLevel = selectedDifficulty;
+        }
+
+        private void ConfigureUIForGame()
+        {
             panelGame.Visible = true;
             buttonNewGame.Visible = true;
             buttonNewGame.Enabled = true;
             buttonStartGame.Visible = false;
+            btnSafeCell.Visible = true;
+            btnSafeCell.Enabled = true;
+            panelGame.Enabled = true;
 
-            int rows = game.Board.Rows;
-            int cols = game.Board.Columns;
+            panelGame.Width = GamePanelDefaultWidth;
+            panelGame.Height = GamePanelDefaultHeight;
 
-            panelGame.Width = 660;
-            panelGame.Height = 480;
+            cellSize = Math.Min(panelGame.Width / game.Board.Columns, panelGame.Height / game.Board.Rows);
 
-            cellSize = Math.Min(panelGame.Width / cols, panelGame.Height / rows);
-
-            labelTimer.Text = $"Час: {elapsedSeconds} с";
-            timer.Stop();
-            timer.Start();
+            timeManager.Stop();
+            timeManager.Start();
 
             renderer = new GameRenderer(panelGame, game, cellSize, cellImages);
             renderer.DrawBoard(Cell_Click);
             replayManager = new ReplayManager(game, renderer, labelTimer);
-            btnSafeCell.Enabled = true;
+        }
+
+        private void UpdateGameStatsUI()
+        {
             lblSafeOpensRemaining.Text = $"Залишилось:\n{renderer.GetRemainingHighlights()}";
             labelProgress.Text = $"Відкрито:\n{game.GetRevealedPercentage()}%";
-
-            totalMines = game.Board.TotalMines;
-
-            btnSafeCell.Visible = true;
-            panelGame.Enabled = true;
-
-            currentLevel = selectedDifficulty;
             lvlNow.Text = $"Рівень: {GetDifficultyDisplayName(currentLevel)}";
 
             int best = ProfileManager.Instance.CurrentProfile.BestTimes[currentLevel];
@@ -168,12 +175,6 @@ namespace WindowsFormsApp1.Core
             int flagged = game.Board.Cells.Cast<Cell>().Count(c => c.IsFlagged);
             int remaining = totalMines - flagged;
             labelMinesLeft.Text = $"Міни: {remaining}";
-        }
-
-        private void GameTimer_Tick(object sender, EventArgs e)
-        {
-            elapsedSeconds++;
-            labelTimer.Text = $"Час: {elapsedSeconds} с";
         }
 
         private async void Cell_Click(object sender, MouseEventArgs e)
@@ -215,106 +216,92 @@ namespace WindowsFormsApp1.Core
             UpdateMinesLeft();
             labelProgress.Text = $"Відкрито:\n{game.GetRevealedPercentage()}%";
 
+            // Техніка: Decompose Conditional
             if (game.State == GameState.Lost)
             {
-                timer.Stop();
-                ProfileManager.Instance.CurrentProfile.GamesPlayed++;
-                ProfileManager.Instance.SaveProfiles();
-                SaveManager.DeleteSave(ProfileManager.Instance.CurrentProfile.Name);
-
-                var replayResult = MessageBox.Show("Гра закінчилась. Ви програли!\n\nБажаєте переглянути повтор Вашої гри?", "Поразка", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                if (replayResult == DialogResult.Yes)
-                {
-                    await replayManager.PlayReplayAsync();
-                }
-
-                var result = MessageBox.Show("Спробувати ще раз?", "Нова гра", MessageBoxButtons.YesNo);
-                if (result == DialogResult.Yes) StartGame();
+                await HandleGameLossAsync();
             }
-
             else if (game.State == GameState.Won)
             {
-                timer.Stop();
-                SaveManager.DeleteSave(ProfileManager.Instance.CurrentProfile.Name);
+                await HandleGameWinAsync();
+            }
+        }
 
-                var currentProfile = ProfileManager.Instance.CurrentProfile;
-                currentProfile.GamesPlayed++;
-                currentProfile.GamesWon++;
+        private async System.Threading.Tasks.Task HandleGameLossAsync()
+        {
+            timeManager.Stop();
+            ProfileManager.Instance.CurrentProfile.GamesPlayed++;
+            ProfileManager.Instance.SaveProfiles();
+            SaveManager.DeleteSave(ProfileManager.Instance.CurrentProfile.Name);
 
-                if (elapsedSeconds < currentProfile.BestTimes[selectedDifficulty])
-                {
-                    currentProfile.BestTimes[selectedDifficulty] = elapsedSeconds;
-                    MessageBox.Show($"Новий рекорд: {elapsedSeconds} секунд для рівня {GetDifficultyDisplayName(selectedDifficulty)}!", "Рекорд");
-                }
-                ProfileManager.Instance.SaveProfiles();
+            var replayResult = MessageBox.Show("Гра закінчилась. Ви програли!\n\nБажаєте переглянути повтор Вашої гри?", "Поразка", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (replayResult == DialogResult.Yes)
+            {
+                await replayManager.PlayReplayAsync();
+            }
 
-                var replayResult = MessageBox.Show("Перемога!\n\nБажаєте переглянути повтор Вашої ідеальної гри?", "Перемога", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-                if (replayResult == DialogResult.Yes)
-                {
-                    await replayManager.PlayReplayAsync();
-                }
+            var result = MessageBox.Show("Спробувати ще раз?", "Нова гра", MessageBoxButtons.YesNo);
+            if (result == DialogResult.Yes) StartGame();
+        }
 
-                if (selectedDifficulty == Difficulty.Easy)
-                {
-                    var result = MessageBox.Show(
-                        "Вітаємо, Ви пройшли легкий рівень!\n\nПерейти до середнього рівня?",
-                        "Перемога",
-                        MessageBoxButtons.YesNo);
+        private async System.Threading.Tasks.Task HandleGameWinAsync()
+        {
+            timeManager.Stop();
+            SaveManager.DeleteSave(ProfileManager.Instance.CurrentProfile.Name);
 
-                    if (result == DialogResult.Yes)
-                    {
-                        radioMedium.Checked = true;
-                        StartGame();
-                        labelProgress.Text = $"Відкрито:\n{game.GetRevealedPercentage()}%";
-                    }
-                }
-                else if (selectedDifficulty == Difficulty.Medium)
-                {
-                    var result = MessageBox.Show(
-                        "Чудово! Ви пройшли середній рівень.\n\nПерейти до складного рівня?",
-                        "Перемога",
-                        MessageBoxButtons.YesNo);
+            var currentProfile = ProfileManager.Instance.CurrentProfile;
+            currentProfile.GamesPlayed++;
+            currentProfile.GamesWon++;
 
-                    if (result == DialogResult.Yes)
-                    {
-                        radioHard.Checked = true;
-                        StartGame();
-                        labelProgress.Text = $"Відкрито:\n{game.GetRevealedPercentage()}%";
-                    }
-                }
-                else if (selectedDifficulty == Difficulty.Hard)
-                {
-                    MessageBox.Show(
-                        "Вітаємо, Вам вдалось пройти останній рівень складності!",
-                        "Перемога",
-                        MessageBoxButtons.OK);
+            if (timeManager.ElapsedSeconds < currentProfile.BestTimes[selectedDifficulty])
+            {
+                currentProfile.BestTimes[selectedDifficulty] = timeManager.ElapsedSeconds;
+                MessageBox.Show($"Новий рекорд: {timeManager.ElapsedSeconds} секунд для рівня {GetDifficultyDisplayName(selectedDifficulty)}!", "Рекорд");
+            }
+            ProfileManager.Instance.SaveProfiles();
 
-                    var result = MessageBox.Show("Грати ще раз?", "Нова гра", MessageBoxButtons.YesNo);
-                    if (result == DialogResult.Yes) StartGame();
-                }
+            var replayResult = MessageBox.Show("Перемога!\n\nБажаєте переглянути повтор Вашої ідеальної гри?", "Перемога", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            if (replayResult == DialogResult.Yes)
+            {
+                await replayManager.PlayReplayAsync();
+            }
+
+            if (selectedDifficulty == Difficulty.Easy)
+            {
+                var result = MessageBox.Show("Вітаємо, Ви пройшли легкий рівень!\n\nПерейти до середнього рівня?", "Перемога", MessageBoxButtons.YesNo);
+                if (result == DialogResult.Yes) { radioMedium.Checked = true; StartGame(); labelProgress.Text = $"Відкрито:\n{game.GetRevealedPercentage()}%"; }
+            }
+            else if (selectedDifficulty == Difficulty.Medium)
+            {
+                var result = MessageBox.Show("Чудово! Ви пройшли середній рівень.\n\nПерейти до складного рівня?", "Перемога", MessageBoxButtons.YesNo);
+                if (result == DialogResult.Yes) { radioHard.Checked = true; StartGame(); labelProgress.Text = $"Відкрито:\n{game.GetRevealedPercentage()}%"; }
+            }
+            else if (selectedDifficulty == Difficulty.Hard)
+            {
+                MessageBox.Show("Вітаємо, Вам вдалось пройти останній рівень складності!", "Перемога", MessageBoxButtons.OK);
+                var result = MessageBox.Show("Грати ще раз?", "Нова гра", MessageBoxButtons.YesNo);
+                if (result == DialogResult.Yes) StartGame();
             }
         }
 
         private void PanelTimer_Tick(object sender, EventArgs e)
         {
-
-
             if (!isPanelExpanded)
             {
-                groupDifficulty.Height += PanelAnimationStep;
-                if (groupDifficulty.Height >= panelMaxHeight)
+                groupDifficulty.Height += AnimationStep;
+                if (groupDifficulty.Height >= MenuPanelMaxHeight)
                 {
-                    groupDifficulty.Height = panelMaxHeight;
+                    groupDifficulty.Height = MenuPanelMaxHeight;
                     panelTimer.Stop();
                     isPanelExpanded = true;
                 }
             }
             else
             {
-                groupDifficulty.Height -= PanelAnimationStep;
-                if (groupDifficulty.Height <= panelMinHeight)
+                groupDifficulty.Height -= AnimationStep;
+                if (groupDifficulty.Height <= MenuPanelMinHeight)
                 {
-                    groupDifficulty.Height = panelMinHeight;
+                    groupDifficulty.Height = MenuPanelMinHeight;
                     panelTimer.Stop();
                     isPanelExpanded = false;
                 }
@@ -445,7 +432,7 @@ namespace WindowsFormsApp1.Core
             resumeButton.Click += (s, e) =>
             {
                 isPaused = false;
-                timer.Start();
+                timeManager.Start();
 
                 pauseOverlayPanel.Visible = false;
 
@@ -476,7 +463,7 @@ namespace WindowsFormsApp1.Core
 
             saveExitButton.Click += (s, e) =>
             {
-                var memento = game.CreateMemento(elapsedSeconds);
+                var memento = game.CreateMemento(timeManager.ElapsedSeconds);
                 SaveManager.SaveGame(memento);
                 MessageBox.Show("Гру успішно збережено!", "Збереження", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 this.Close();
@@ -498,7 +485,7 @@ namespace WindowsFormsApp1.Core
                 if (!isPaused)
                 {
                     isPaused = true;
-                    timer.Stop();
+                    timeManager.Stop();
 
                     panelGame.Enabled = false;
                     buttonNewGame.Enabled = false;
@@ -514,7 +501,7 @@ namespace WindowsFormsApp1.Core
                 else
                 {
                     isPaused = false;
-                    timer.Start();
+                    timeManager.Start();
 
                     panelGame.Enabled = true;
                     buttonNewGame.Enabled = true;
@@ -540,12 +527,12 @@ namespace WindowsFormsApp1.Core
         private void pausePanel_Click(object sender, EventArgs e)
         {
             if (!gameStarted || game.State != GameState.Playing)
-                return;
+                return; 
 
             if (isPaused) return;
 
                 isPaused = true;
-                timer.Stop();
+                timeManager.Stop();
 
                 panelGame.Enabled = false;
                 buttonNewGame.Enabled = false;
